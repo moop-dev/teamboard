@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
 import { Filters, FilterState } from '@/components/Filters'
 import { KanbanBoard } from '@/components/KanbanBoard'
@@ -12,9 +13,10 @@ import { useTasks } from '@/hooks/useTasks'
 import { useRealtime } from '@/hooks/useRealtime'
 import { Task, Project, Status } from '@/lib/types'
 import { createClient } from '@/lib/supabaseClient'
-import { useEffect, useRef } from 'react'
 
 export default function DashboardPage() {
+  const router = useRouter()
+  const [authChecked, setAuthChecked] = useState(false)
   const { projects, setProjects, createProject } = useProjects()
   const { profiles } = useProfiles()
   const { tasks, setTasks, createTask, updateTask, deleteTask, moveTask } = useTasks()
@@ -34,11 +36,15 @@ export default function DashboardPage() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
-      currentUserId.current = data.user?.id ?? null
+      if (!data.user) {
+        router.push('/login')
+      } else {
+        currentUserId.current = data.user.id
+        setAuthChecked(true)
+      }
     })
-  }, [])
+  }, [router])
 
-  // Realtime handlers
   const handleTaskInsert = useCallback((task: Task) => {
     setTasks((prev) => {
       if (prev.find((t) => t.id === task.id)) return prev
@@ -73,7 +79,6 @@ export default function DashboardPage() {
     onProjectUpdate: handleProjectUpdate,
   })
 
-  // Filtered tasks
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
       if (filters.projectId && task.project_id !== filters.projectId) return false
@@ -109,6 +114,14 @@ export default function DashboardPage() {
 
   const handleCreateProject = async (name: string, color: string) => {
     await createProject(name, color)
+  }
+
+  if (!authChecked) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#0d0d0f]">
+        <div className="text-slate-500 text-sm">Cargando...</div>
+      </div>
+    )
   }
 
   return (
